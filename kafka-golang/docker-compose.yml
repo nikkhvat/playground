@@ -1,19 +1,46 @@
 version: '3'
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      - ZOOKEEPER_CLIENT_PORT=2181
-    networks:
-      - kafka-network
-
   kafka:
-    image: confluentinc/cp-kafka:latest
-    depends_on:
-      - zookeeper
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
     environment:
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      # KRaft settings
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+
+      # listeners settings
+      KAFKA_LISTENERS: "INTERNAL://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+      # topics/brokers settings
+
+      # Replication factor for the internal offsets topic used by Kafka to store consumer offsets
+      # In development, we set this to 1 since we only have one broker
+      # In production, this should be at least 3 for fault tolerance
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+      # Replication factor for the transaction state log used for Kafka transactions
+      # Set to 1 in development since we have a single node cluster
+      # In production, should match the replication factor of other critical topics
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+      # Minimum number of in-sync replicas required for transaction state log
+      # This ensures data consistency and durability
+      # Set to 1 for development since we have only one broker
+      # In production, typically set to 2 or more for high availability
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # Automatically create topics when they are first referenced
+      # Very useful in development environment
+      # In production, this is often disabled for better control and security
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     networks:
       - kafka-network
 
@@ -27,7 +54,6 @@ services:
       - kafka-network
     ports:
       - "8080:8080"
-
 
   second-microservice:
     build:
